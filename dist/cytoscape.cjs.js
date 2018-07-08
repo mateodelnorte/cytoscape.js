@@ -21561,11 +21561,26 @@ BRp.findEndpoints = function (edge) {
   var arrowEnd = math.shortenIntersection(intersect, p1, r.arrowShapes[tgtArShape].spacing(edge) + tgtDist);
   var edgeEnd = math.shortenIntersection(intersect, p1, r.arrowShapes[tgtArShape].gap(edge) + tgtDist);
 
-  rs.endX = edgeEnd[0];
-  rs.endY = edgeEnd[1];
-
-  rs.arrowEndX = arrowEnd[0];
-  rs.arrowEndY = arrowEnd[1];
+  // Drew Banin - dbt docs
+  // Make horizontal edges use exactly the terminal node x and y pos
+  // so that multiple edges into the same node all exactly overlap.
+  // Without this adjustments, the arrows partially overlap and lose their definition
+  if (edge.hasClass('horizontal')) {
+    rs.endX = intersect[0] - tgtDist;
+    rs.endY = intersect[1];
+    rs.arrowEndX = intersect[0] - tgtDist / 2;
+    rs.arrowEndY = intersect[1];
+  } else if (edge.hasClass('vertical')) {
+    rs.endX = intersect[0];
+    rs.endY = intersect[1] - tgtDist;
+    rs.arrowEndX = intersect[0];
+    rs.arrowEndY = intersect[1] - tgtDist / 2;
+  } else {
+    rs.endX = edgeEnd[0];
+    rs.endY = edgeEnd[1];
+    rs.arrowEndX = arrowEnd[0];
+    rs.arrowEndY = arrowEnd[1];
+  }
 
   if (srcManEndptVal === 'inside-to-node') {
     intersect = [srcPos.x, srcPos.y];
@@ -27002,8 +27017,29 @@ CRp.drawEdgePath = function (edge, context, pts, type) {
       case 'self':
       case 'compound':
       case 'multibezier':
-        for (var i = 2; i + 3 < pts.length; i += 4) {
-          context.quadraticCurveTo(pts[i], pts[i + 1], pts[i + 2], pts[i + 3]);
+        // Drew Banin - dbt docs
+        // Draw lines horizontally or vertically into and out of nodes
+        if (edge.hasClass('horizontal')) {
+          var terminal_x = pts[4];
+          var terminal_y = pts[5];
+          var midpoint_x = (pts[0] + pts[4]) / 2;
+
+          var hack_perpendicular_line_width = 10;
+          context.lineTo(pts[0] + hack_perpendicular_line_width, pts[1]);
+          context.bezierCurveTo(midpoint_x, pts[1], midpoint_x, pts[5], pts[4] - hack_perpendicular_line_width, pts[5]);
+          context.lineTo(terminal_x, terminal_y);
+        } else if (edge.hasClass('vertical')) {
+          var _terminal_x = pts[4];
+          var _terminal_y = pts[5];
+          var midpoint_y = (pts[1] + pts[5]) / 2;
+
+          var hack_perpendicular_line_height = 10;
+          context.bezierCurveTo(pts[0], midpoint_y, pts[4], midpoint_y, pts[4], pts[5] - hack_perpendicular_line_height);
+          context.lineTo(_terminal_x, _terminal_y);
+        } else {
+          for (var i = 2; i + 3 < pts.length; i += 4) {
+            context.quadraticCurveTo(pts[i], pts[i + 1], pts[i + 2], pts[i + 3]);
+          }
         }
         break;
 
@@ -27044,7 +27080,17 @@ CRp.drawArrowheads = function (context, edge, opacity) {
   this.drawArrowhead(context, edge, 'mid-source', rs.midX, rs.midY, rs.midsrcArrowAngle, opacity);
 
   if (!isHaystack) {
-    this.drawArrowhead(context, edge, 'target', rs.arrowEndX, rs.arrowEndY, rs.tgtArrowAngle, opacity);
+    // Drew Banin - dbt docs
+    // Make horizontal arrows strictly left-to-right or top-to-bottom
+    // Do not try to calculate the arrow angle by the line connecting the two nodes
+    // Our cubic bezier curve intersects nodes strictly perpendicularly
+    if (edge.hasClass('horizontal')) {
+      this.drawArrowhead(context, edge, 'target', rs.arrowEndX, rs.arrowEndY, -Math.PI / 2, opacity);
+    } else if (edge.hasClass('vertical')) {
+      this.drawArrowhead(context, edge, 'target', rs.arrowEndX, rs.arrowEndY, 0, opacity);
+    } else {
+      this.drawArrowhead(context, edge, 'target', rs.arrowEndX, rs.arrowEndY, rs.tgtArrowAngle, opacity);
+    }
   }
 };
 
@@ -29090,7 +29136,7 @@ module.exports = Stylesheet;
 "use strict";
 
 
-module.exports = "3.2.14";
+module.exports = "snapshot-2fd4aa6cc2-1531011493999";
 
 /***/ })
 /******/ ]);
